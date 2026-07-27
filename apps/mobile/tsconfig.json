@@ -1,0 +1,32 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "jsx": "react-jsx",
+    "lib": ["ES2022"],
+    "types": ["react-native", "jest"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@omni-remote/core": ["../../packages/core/src"],
+      "@omni-remote/discovery": ["../../packages/discovery/src"],
+      "@omni-remote/protocol-types": ["../../packages/protocol-types/src"],
+      "@omni-remote/adapter-roku": ["../../packages/adapter-roku/src"],
+      "@omni-remote/adapter-lg-webos": ["../../packages/adapter-lg-webos/src"],
+      "@omni-remote/adapter-samsung-tizen": ["../../packages/adapter-samsung-tizen/src"],
+      "@omni-remote/adapter-cast": ["../../packages/adapter-cast/src"],
+      "@omni-remote/adapter-upnp": ["../../packages/adapter-upnp/src"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/discovery" },
+    { "path": "../../packages/protocol-types" },
+    { "path": "../../packages/adapter-roku" },
+    { "path": "../../packages/adapter-lg-webos" },
+    { "path": "../../packages/adapter-samsung-tizen" },
+    { "path": "../../packages/adapter-cast" },
+    { "path": "../../packages/adapter-upnp" }
+  ]
+}

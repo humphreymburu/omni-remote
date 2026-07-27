@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Omni Remote</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+		<string>wifi</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<!-- Local Network Access: Required for SSDP/mDNS TV discovery -->
+	<!-- iOS 14+: Prompts user "Omni Remote wants to find and connect to devices on your local network" -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Omni Remote needs to scan your local Wi-Fi network to discover smart TVs and streaming devices for remote control.</string>
+
+	<!-- Bonjour Services: Required for mDNS/DNS-SD discovery -->
+	<!-- iOS 14+: Must declare the specific Bonjour services the app browses -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_roku-rcu._tcp</string>
+		<string>_googlecast._tcp</string>
+		<string>_mediaremotetv._tcp</string>
+		<string>_dacp._tcp</string>
+		<string>_airplay._tcp</string>
+		<string>_http._tcp</string>
+		<string>_ssdp._udp</string>
+	</array>
+
+	<!-- Microphone: Required for voice commands -->
+	<!-- iOS prompts user on first voice access -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Omni Remote uses your microphone to process voice commands such as channel changes, app launches, and volume control.</string>
+
+	<!-- Speech Recognition -->
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Voice commands allow you to control your TV by speaking. Audio is processed on-device when possible.</string>
+
+	<!-- Background Modes: Optional wake-on-LAN or casting -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+</dict>
+</plist>

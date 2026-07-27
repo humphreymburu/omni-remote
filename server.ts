@@ -1,10 +1,11 @@
 import express from "express";
 import path from "path";
+import dgram from "node:dgram";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: "10mb" }));
 
@@ -27,15 +28,171 @@ function getGeminiClient(): GoogleGenAI | null {
   return aiClient;
 }
 
-// In-memory mock cloud database for sync functionality
+// In-memory profile store for sync functionality. Replace with persistent
+// storage before using sync across production server restarts.
 const cloudProfiles: Record<string, any> = {};
+
+type DiscoveredTV = {
+  id: string;
+  name: string;
+  brand: "roku" | "lg" | "samsung" | "sony" | "android" | "apple" | "generic";
+  protocol: "websocket" | "http_rest" | "web_bluetooth" | "ssdp_bridge";
+  ipAddress: string;
+  port: number;
+  paired: boolean;
+  isOnline: boolean;
+  lastSeen: string;
+  state: {
+    power: boolean;
+    volume: number;
+    muted: boolean;
+    channel: number;
+    channelName: string;
+    activeApp: string;
+    currentInput: string;
+    mediaState: "playing" | "paused" | "stopped";
+  };
+};
+
+function parseSsdpHeaders(message: string): Record<string, string> {
+  return message.split(/\r?\n/).reduce<Record<string, string>>((headers, line) => {
+    const separator = line.indexOf(":");
+    if (separator > -1) {
+      headers[line.slice(0, separator).trim().toLowerCase()] = line.slice(separator + 1).trim();
+    }
+    return headers;
+  }, {});
+}
+
+function inferBrand(headers: Record<string, string>): DiscoveredTV["brand"] {
+  const text = `${headers.server || ""} ${headers.st || ""} ${headers.usn || ""} ${headers.location || ""}`.toLowerCase();
+  if (text.includes("roku")) return "roku";
+  if (text.includes("samsung")) return "samsung";
+  if (text.includes("lg") || text.includes("webos")) return "lg";
+  if (text.includes("bravia") || text.includes("sony")) return "sony";
+  if (text.includes("android") || text.includes("google")) return "android";
+  if (text.includes("apple")) return "apple";
+  return "generic";
+}
+
+function buildDiscoveredDevice(headers: Record<string, string>, remoteAddress: string): DiscoveredTV {
+  const brand = inferBrand(headers);
+  const location = headers.location || "";
+  let port = brand === "roku" ? 8060 : 80;
+
+  try {
+    if (location) {
+      const url = new URL(location);
+      if (url.port) {
+        port = Number(url.port);
+      }
+    }
+  } catch {
+    // Some devices return non-standard LOCATION values. The remote address is still useful.
+  }
+
+  const name =
+    headers["friendly-name"] ||
+    headers["roku-device-name"] ||
+    (brand === "generic" ? `UPnP Device ${remoteAddress}` : `${brand.toUpperCase()} TV ${remoteAddress}`);
+
+  return {
+    id: `ssdp-${brand}-${remoteAddress.replace(/[^a-z0-9]/gi, "-")}-${port}`,
+    name,
+    brand,
+    protocol: brand === "roku" ? "http_rest" : "ssdp_bridge",
+    ipAddress: remoteAddress,
+    port,
+    paired: false,
+    isOnline: true,
+    lastSeen: new Date().toISOString(),
+    state: {
+      power: true,
+      volume: 20,
+      muted: false,
+      channel: 1,
+      channelName: "Live TV",
+      activeApp: brand === "roku" ? "Roku Home" : "Smart TV",
+      currentInput: "Unknown",
+      mediaState: "stopped",
+    },
+  };
+}
+
+function discoverSsdpDevices(timeoutMs = 3500): Promise<DiscoveredTV[]> {
+  const searchTargets = ["ssdp:all", "upnp:rootdevice", "roku:ecp"];
+  const devices = new Map<string, DiscoveredTV>();
+
+  return new Promise((resolve, reject) => {
+    const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
+    const finish = () => {
+      socket.close();
+      resolve(Array.from(devices.values()));
+    };
+    const timer = setTimeout(finish, timeoutMs);
+
+    socket.on("message", (buffer, remote) => {
+      const headers = parseSsdpHeaders(buffer.toString("utf8"));
+      const device = buildDiscoveredDevice(headers, remote.address);
+      devices.set(device.id, device);
+    });
+
+    socket.on("error", (error) => {
+      clearTimeout(timer);
+      socket.close();
+      reject(error);
+    });
+
+    socket.bind(() => {
+      socket.setBroadcast(true);
+      socket.setMulticastTTL(2);
+
+      searchTargets.forEach((target) => {
+        const request = [
+          "M-SEARCH * HTTP/1.1",
+          "HOST: 239.255.255.250:1900",
+          'MAN: "ssdp:discover"',
+          "MX: 2",
+          `ST: ${target}`,
+          "",
+          "",
+        ].join("\r\n");
+
+        socket.send(Buffer.from(request), 1900, "239.255.255.250");
+      });
+    });
+  });
+}
 
 // 1. Health check endpoint
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// 2. Voice Command Interpretation using Gemini AI or structured fallback
+// 2. Real SSDP network discovery. This only discovers devices visible from the
+// server's network, so hosted deployments cannot scan a user's home LAN unless
+// the server is running inside that LAN.
+app.get("/api/discover", async (_req, res) => {
+  try {
+    const devices = await discoverSsdpDevices();
+    res.json({
+      success: true,
+      devices,
+      message:
+        devices.length > 0
+          ? `Found ${devices.length} device(s) via SSDP.`
+          : "No SSDP devices responded on this network.",
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      devices: [],
+      error: err.message || "Device discovery failed",
+    });
+  }
+});
+
+// 3. Voice Command Interpretation using Gemini AI or structured fallback
 app.post("/api/voice-command", async (req, res) => {
   try {
     const { transcript, currentDevice } = req.body;
@@ -156,7 +313,7 @@ Return a JSON object with:
   }
 });
 
-// 3. Local TV Network Proxy Endpoint (Bypasses CORS for local REST APIs like Roku ECP, Sony IRCC)
+// 4. Local TV Network Proxy Endpoint (Bypasses CORS for local REST APIs like Roku ECP, Sony IRCC)
 app.post("/api/tv-proxy", async (req, res) => {
   const { url, method = "POST", headers = {}, body = null, timeout = 3000 } = req.body;
 
@@ -199,7 +356,7 @@ app.post("/api/tv-proxy", async (req, res) => {
   }
 });
 
-// 4. Encrypted Cloud Synchronization Endpoint
+// 5. Profile Synchronization Endpoint
 app.post("/api/sync/save", (req, res) => {
   const { accountId = "default-user", payload } = req.body;
   if (!payload) {

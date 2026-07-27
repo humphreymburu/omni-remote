@@ -13,12 +13,12 @@ import {
 } from 'lucide-react';
 import { TVDevice } from '../../types';
 
-interface SimulatedTVScreenProps {
+interface TVStatusPanelProps {
   device: TVDevice;
   onClose?: () => void;
 }
 
-export const SimulatedTVScreen: React.FC<SimulatedTVScreenProps> = ({ device, onClose }) => {
+export const TVStatusPanel: React.FC<TVStatusPanelProps> = ({ device, onClose }) => {
   const { state, name, brand } = device;
 
   // Background artwork based on active app or channel
@@ -84,8 +84,7 @@ export const SimulatedTVScreen: React.FC<SimulatedTVScreenProps> = ({ device, on
             <span className="uppercase text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-400">{brand}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span>4K HDR</span>
-            <span>60Hz</span>
+            <span>Status</span>
             {onClose && (
               <button
                 onClick={onClose}
@@ -126,7 +125,7 @@ export const SimulatedTVScreen: React.FC<SimulatedTVScreenProps> = ({ device, on
                 </div>
               </div>
 
-              {/* Center Content Artwork / Simulated Video Animation */}
+              {/* Center Content Artwork / Playback Status */}
               <div className="my-auto flex flex-col items-center justify-center text-center z-10 py-2">
                 <div className="relative mb-2">
                   <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-2xl">

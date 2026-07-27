@@ -9,8 +9,6 @@ import {
   FolderDown,
   Cloud,
   MonitorPlay,
-  RotateCcw,
-  Sparkles,
 } from 'lucide-react';
 import { TVDevice, AppTheme } from '../../types';
 
@@ -18,8 +16,8 @@ interface HeaderProps {
   activeDevice: TVDevice | null;
   isOnline: boolean;
   theme: AppTheme;
-  showSimulatedTV: boolean;
-  onToggleSimulatedTV: () => void;
+  showTVStatusPanel: boolean;
+  onToggleTVStatusPanel: () => void;
   onOpenDiscovery: () => void;
   onOpenVoice: () => void;
   onOpenMedia: () => void;
@@ -32,8 +30,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   activeDevice,
   isOnline,
-  showSimulatedTV,
-  onToggleSimulatedTV,
+  showTVStatusPanel,
+  onToggleTVStatusPanel,
   onOpenDiscovery,
   onOpenVoice,
   onOpenMedia,
@@ -53,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="min-w-0 cursor-pointer" onClick={onOpenDiscovery}>
             <h1 className="text-lg font-semibold tracking-tight text-white truncate">
-              {activeDevice ? activeDevice.name : 'Living Room TV'}
+              {activeDevice ? activeDevice.name : 'OmniRemote'}
             </h1>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`w-2 h-2 rounded-full ${activeDevice ? 'bg-green-500' : 'bg-amber-500 animate-ping'}`} />
@@ -66,23 +64,25 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Network Latency & Quick Utility Control Buttons */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="hidden sm:flex flex-col items-end">
-            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Network Latency</span>
-            <span className="text-xs font-mono text-blue-400">12ms</span>
-          </div>
+          {activeDevice && (
+            <div className="hidden sm:flex flex-col items-end">
+              <span className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Protocol</span>
+              <span className="text-xs font-mono text-blue-400">{activeDevice.protocol}</span>
+            </div>
+          )}
 
-          {/* Virtual TV Screen Toggle */}
+          {/* TV Status Panel Toggle */}
           <button
-            onClick={onToggleSimulatedTV}
-            title={showSimulatedTV ? 'Hide TV Mirror' : 'Show Live TV Mirror Screen'}
+            onClick={onToggleTVStatusPanel}
+            title={showTVStatusPanel ? 'Hide TV Status' : 'Show TV Status'}
             className={`p-2 rounded-full transition-all flex items-center gap-1.5 ${
-              showSimulatedTV
+              showTVStatusPanel
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'hover:bg-white/5 text-gray-400 hover:text-white'
             }`}
           >
             <MonitorPlay className="w-5 h-5" />
-            <span className="hidden md:inline text-xs font-medium">TV Mirror</span>
+            <span className="hidden md:inline text-xs font-medium">TV Status</span>
           </button>
 
           {/* Voice Search Mic */}

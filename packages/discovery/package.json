@@ -1,0 +1,17 @@
+{
+  "name": "@omni-remote/discovery",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@omni-remote/core": "*"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2"
+  }
+}

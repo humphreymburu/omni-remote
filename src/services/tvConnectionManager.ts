@@ -19,9 +19,9 @@ export class TVConnectionManager {
   ): Promise<{ success: boolean; updatedState: TVDevice['state']; logMessage: string }> {
     const newState = { ...device.state };
     let logMessage = `Sent ${command.type}${command.value !== undefined ? `: ${command.value}` : ''}`;
-    let success = true;
+    let success = false;
 
-    // First update simulated local state for instant tactile response
+    // Prepare the local state update that will be applied after transport success.
     switch (command.type) {
       case 'POWER':
         newState.power = !newState.power;
@@ -127,7 +127,7 @@ export class TVConnectionManager {
     // Now dispatch to real protocol transport if network is connected
     try {
       if (device.protocol === 'web_bluetooth') {
-        await bluetoothService.sendCommand(command.type);
+        success = await bluetoothService.sendCommand(command.type);
       } else if (device.protocol === 'http_rest' && device.brand === 'roku') {
         // Roku ECP endpoint protocol
         const keyMap: Record<string, string> = {
@@ -148,14 +148,16 @@ export class TVConnectionManager {
         const key = keyMap[command.type] || command.type;
         const targetUrl = `http://${device.ipAddress}:${device.port || 8060}/keypress/${key}`;
 
-        fetch('/api/tv-proxy', {
+        const response = await fetch('/api/tv-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: targetUrl, method: 'POST' }),
-        }).catch(() => {});
+        });
+        const result = await response.json();
+        success = Boolean(result.success);
       } else if (device.protocol === 'websocket') {
         // WebSocket JSON-RPC / WS protocol proxy
-        fetch('/api/tv-proxy', {
+        const response = await fetch('/api/tv-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -163,113 +165,35 @@ export class TVConnectionManager {
             method: 'POST',
             body: { command: command.type, value: command.value },
           }),
-        }).catch(() => {});
+        });
+        const result = await response.json();
+        success = Boolean(result.success);
+      } else {
+        logMessage = `No command transport is implemented for ${device.brand.toUpperCase()} (${device.protocol})`;
       }
     } catch (err) {
-      console.warn('Real device transport notice (using protocol fallback):', err);
+      success = false;
+      logMessage = `Failed to send ${command.type} to ${device.name}`;
+      console.warn('Real device transport failed:', err);
     }
 
     return {
       success,
-      updatedState: newState,
+      updatedState: success ? newState : device.state,
       logMessage,
     };
   }
 
-  // Live subnet mDNS / SSDP broadcast network scanner simulation
+  // Uses the backend SSDP discovery endpoint. Browser PWAs cannot directly send
+  // LAN multicast packets, so discovery must happen from the server process.
   public async scanLocalNetwork(): Promise<TVDevice[]> {
-    await new Promise((r) => setTimeout(r, 1200));
+    const response = await fetch('/api/discover');
+    if (!response.ok) {
+      throw new Error('Device discovery failed');
+    }
 
-    return [
-      {
-        id: 'tv-lg-livingroom',
-        name: 'Living Room OLED TV',
-        brand: 'lg',
-        protocol: 'websocket',
-        ipAddress: '192.168.1.105',
-        port: 3000,
-        macAddress: 'AA:BB:CC:11:22:33',
-        paired: true,
-        isOnline: true,
-        lastSeen: new Date().toISOString(),
-        state: {
-          power: true,
-          volume: 24,
-          muted: false,
-          channel: 7,
-          channelName: 'BBC News HD',
-          activeApp: 'Netflix',
-          currentInput: 'HDMI 1 (Apple TV)',
-          mediaState: 'playing',
-          mediaTitle: 'Stranger Things',
-          mediaArtist: 'S4 : E1 - Chapter One',
-        },
-      },
-      {
-        id: 'tv-roku-bedroom',
-        name: 'Bedroom Roku Express',
-        brand: 'roku',
-        protocol: 'http_rest',
-        ipAddress: '192.168.1.112',
-        port: 8060,
-        paired: true,
-        isOnline: true,
-        lastSeen: new Date().toISOString(),
-        state: {
-          power: true,
-          volume: 18,
-          muted: false,
-          channel: 12,
-          channelName: 'Roku Channel',
-          activeApp: 'YouTube',
-          currentInput: 'Roku Home',
-          mediaState: 'paused',
-          mediaTitle: '4K Ultra HD Nature Relaxation',
-        },
-      },
-      {
-        id: 'tv-samsung-den',
-        name: 'Den Samsung QLED 4K',
-        brand: 'samsung',
-        protocol: 'websocket',
-        ipAddress: '192.168.1.120',
-        port: 8001,
-        paired: false,
-        isOnline: true,
-        lastSeen: new Date().toISOString(),
-        state: {
-          power: false,
-          volume: 15,
-          muted: false,
-          channel: 4,
-          channelName: 'CNN International',
-          activeApp: 'Disney+',
-          currentInput: 'HDMI 2 (PlayStation 5)',
-          mediaState: 'stopped',
-        },
-      },
-      {
-        id: 'tv-sony-bravia',
-        name: 'Basement Sony Bravia Google TV',
-        brand: 'sony',
-        protocol: 'http_rest',
-        ipAddress: '192.168.1.145',
-        port: 80,
-        paired: true,
-        isOnline: true,
-        lastSeen: new Date().toISOString(),
-        state: {
-          power: true,
-          volume: 32,
-          muted: false,
-          channel: 1,
-          channelName: 'NBC Live',
-          activeApp: 'Prime Video',
-          currentInput: 'HDMI 3',
-          mediaState: 'playing',
-        },
-      },
-    ];
+    const payload = await response.json();
+    return payload.devices || [];
   }
 }
 

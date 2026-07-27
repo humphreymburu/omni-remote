@@ -1,18 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Tv,
   Gamepad2,
   Hand,
   Hash,
   Sparkles,
-  Wifi,
-  WifiOff,
   History,
-  Info,
   CheckCircle2,
 } from 'lucide-react';
 import { Header } from './components/common/Header';
-import { SimulatedTVScreen } from './components/simulator/SimulatedTVScreen';
+import { TVStatusPanel } from './components/status/TVStatusPanel';
 import { DPadRemote } from './components/remote/DPadRemote';
 import { TouchpadRemote } from './components/touchpad/TouchpadRemote';
 import { NumPadRemote } from './components/remote/NumPadRemote';
@@ -33,18 +29,89 @@ import {
   CommandLog,
   OfflineMediaItem,
 } from './types';
-import { DEFAULT_FAVORITES } from './data/defaultFavorites';
 import { tvConnectionManager } from './services/tvConnectionManager';
 import { soundManager } from './utils/soundEffects';
 import { getLocalConfig, saveLocalConfig } from './utils/indexedDb';
 
+const LEGACY_SEEDED_DEVICE_IDS = new Set([
+  'tv-lg-livingroom',
+  'tv-roku-bedroom',
+  'tv-samsung-den',
+  'tv-sony-bravia',
+]);
+
+const SEEDED_FAVORITE_IDS = new Set([
+  'fav-netflix',
+  'fav-youtube',
+  'fav-disney',
+  'fav-prime',
+  'fav-spotify',
+  'fav-appletv',
+  'fav-hbo',
+  'fav-twitch',
+  'fav-bbc',
+  'fav-cnn',
+  'fav-espn',
+  'fav-hdmi1',
+  'fav-hdmi2',
+  'fav-macro-movie',
+]);
+
+const VOICE_COMMAND_ALIASES: Record<string, RemoteCommand['type']> = {
+  POWER_TOGGLE: 'POWER',
+  POWER_ON: 'POWER',
+  POWER_OFF: 'POWER',
+  VOLUME_UP: 'VOL_UP',
+  VOLUME_DOWN: 'VOL_DOWN',
+  VOLUME_SET: 'VOL_SET',
+  CHANNEL_UP: 'CH_UP',
+  CHANNEL_DOWN: 'CH_DOWN',
+  CHANNEL_SET: 'CH_SET',
+  SELECT: 'NAV_SELECT',
+  CHANGE_INPUT: 'INPUT',
+  SEARCH: 'TEXT_INPUT',
+};
+
+function normalizeVoiceAction(action: { type: string; value?: string }): RemoteCommand {
+  const value = typeof action.value === 'string' ? action.value.toUpperCase() : action.value;
+
+  if (action.type === 'NAVIGATE') {
+    const direction = String(value || '').toUpperCase();
+    const directionMap: Record<string, RemoteCommand['type']> = {
+      UP: 'NAV_UP',
+      DOWN: 'NAV_DOWN',
+      LEFT: 'NAV_LEFT',
+      RIGHT: 'NAV_RIGHT',
+    };
+    return { type: directionMap[direction] || 'NAV_SELECT' };
+  }
+
+  if (action.type === 'MEDIA_CONTROL') {
+    const mediaAction = String(value || '').toUpperCase();
+    const mediaMap: Record<string, RemoteCommand['type']> = {
+      PLAY: 'PLAY',
+      PAUSE: 'PAUSE',
+      STOP: 'STOP',
+      REWIND: 'REWIND',
+      FAST_FORWARD: 'FAST_FORWARD',
+      FORWARD: 'FAST_FORWARD',
+    };
+    return { type: mediaMap[mediaAction] || 'PLAY' };
+  }
+
+  return {
+    type: VOICE_COMMAND_ALIASES[action.type] || (action.type as RemoteCommand['type']),
+    value: action.value,
+  };
+}
+
 export default function App() {
   const [activeDevice, setActiveDevice] = useState<TVDevice | null>(null);
   const [pairedDevices, setPairedDevices] = useState<TVDevice[]>([]);
-  const [favorites, setFavorites] = useState<FavoriteItem[]>(DEFAULT_FAVORITES);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [activeMode, setActiveMode] = useState<'dpad' | 'touchpad' | 'numpad' | 'favorites'>('dpad');
 
-  const [showSimulatedTV, setShowSimulatedTV] = useState<boolean>(true);
+  const [showTVStatusPanel, setShowTVStatusPanel] = useState<boolean>(true);
   const [showDiscoveryModal, setShowDiscoveryModal] = useState<boolean>(false);
   const [showVoiceModal, setShowVoiceModal] = useState<boolean>(false);
   const [showMediaModal, setShowMediaModal] = useState<boolean>(false);
@@ -85,62 +152,23 @@ export default function App() {
       setGestureSettings(savedGestures);
       soundManager.setEnabled(savedGestures.soundEffects);
 
-      const savedFavs = await getLocalConfig<FavoriteItem[]>('favorites_list', DEFAULT_FAVORITES);
-      setFavorites(savedFavs);
+      const savedFavs = await getLocalConfig<FavoriteItem[]>('favorites_list', []);
+      const userFavorites = savedFavs.filter((favorite) => !SEEDED_FAVORITE_IDS.has(favorite.id));
+      setFavorites(userFavorites);
+      if (userFavorites.length !== savedFavs.length) {
+        saveLocalConfig('favorites_list', userFavorites);
+      }
 
-      // Default mock paired devices
-      const defaultDevices: TVDevice[] = [
-        {
-          id: 'tv-lg-livingroom',
-          name: 'Living Room OLED TV',
-          brand: 'lg',
-          protocol: 'websocket',
-          ipAddress: '192.168.1.105',
-          port: 3000,
-          paired: true,
-          isOnline: true,
-          lastSeen: new Date().toISOString(),
-          state: {
-            power: true,
-            volume: 24,
-            muted: false,
-            channel: 7,
-            channelName: 'BBC News HD',
-            activeApp: 'Netflix',
-            currentInput: 'HDMI 1 (Apple TV)',
-            mediaState: 'playing',
-            mediaTitle: 'Stranger Things',
-          },
-        },
-        {
-          id: 'tv-roku-bedroom',
-          name: 'Bedroom Roku Express',
-          brand: 'roku',
-          protocol: 'http_rest',
-          ipAddress: '192.168.1.112',
-          port: 8060,
-          paired: true,
-          isOnline: true,
-          lastSeen: new Date().toISOString(),
-          state: {
-            power: true,
-            volume: 18,
-            muted: false,
-            channel: 12,
-            channelName: 'Roku Channel',
-            activeApp: 'YouTube',
-            currentInput: 'Roku Home',
-            mediaState: 'paused',
-          },
-        },
-      ];
+      const loadedDevices = await getLocalConfig<TVDevice[]>('paired_devices', []);
+      const realDevices = loadedDevices.filter((device) => !LEGACY_SEEDED_DEVICE_IDS.has(device.id));
+      setPairedDevices(realDevices);
+      if (realDevices.length !== loadedDevices.length) {
+        saveLocalConfig('paired_devices', realDevices);
+      }
 
-      const loadedDevices = await getLocalConfig<TVDevice[]>('paired_devices', defaultDevices);
-      setPairedDevices(loadedDevices);
-
-      if (loadedDevices.length > 0) {
-        setActiveDevice(loadedDevices[0]);
-        tvConnectionManager.setActiveDevice(loadedDevices[0]);
+      if (realDevices.length > 0) {
+        setActiveDevice(realDevices[0]);
+        tvConnectionManager.setActiveDevice(realDevices[0]);
       }
     };
 
@@ -168,9 +196,12 @@ export default function App() {
     }
 
     const currentDev = activeDevice || pairedDevices[0];
-    if (!currentDev) return;
+    if (!currentDev) {
+      showToast('Pair or add a TV before sending commands');
+      return;
+    }
 
-    const { updatedState, logMessage } = await tvConnectionManager.sendCommand(command, currentDev);
+    const { success, updatedState, logMessage } = await tvConnectionManager.sendCommand(command, currentDev);
 
     const updatedDev = { ...currentDev, state: updatedState };
     setActiveDevice(updatedDev);
@@ -188,7 +219,7 @@ export default function App() {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       command,
       deviceName: currentDev.name,
-      status: 'sent',
+      status: success ? 'sent' : 'failed',
       details: logMessage,
     };
 
@@ -198,7 +229,7 @@ export default function App() {
   const handleExecuteVoiceActions = (actions: Array<{ type: string; value?: string }>) => {
     actions.forEach((act, i) => {
       setTimeout(() => {
-        handleSendCommand({ type: act.type as any, value: act.value });
+        handleSendCommand(normalizeVoiceAction(act));
       }, i * 350);
     });
   };
@@ -327,8 +358,8 @@ export default function App() {
         activeDevice={activeDevice}
         isOnline={isOnline}
         theme={theme}
-        showSimulatedTV={showSimulatedTV}
-        onToggleSimulatedTV={() => setShowSimulatedTV(!showSimulatedTV)}
+        showTVStatusPanel={showTVStatusPanel}
+        onToggleTVStatusPanel={() => setShowTVStatusPanel(!showTVStatusPanel)}
         onOpenDiscovery={() => setShowDiscoveryModal(true)}
         onOpenVoice={() => setShowVoiceModal(true)}
         onOpenMedia={() => setShowMediaModal(true)}
@@ -342,11 +373,11 @@ export default function App() {
 
       {/* Main Responsive Canvas */}
       <main className="flex-1 max-w-xl mx-auto w-full px-4 py-4 flex flex-col gap-4 pb-12">
-        {/* Interactive Simulated TV Screen Frame */}
-        {showSimulatedTV && activeDevice && (
-          <SimulatedTVScreen
+        {/* Interactive TV Status Panel */}
+        {showTVStatusPanel && activeDevice && (
+          <TVStatusPanel
             device={activeDevice}
-            onClose={() => setShowSimulatedTV(false)}
+            onClose={() => setShowTVStatusPanel(false)}
           />
         )}
 
@@ -449,7 +480,7 @@ export default function App() {
       <footer className="mt-auto border-t border-white/5 bg-[#050505] px-6 py-3.5 flex items-center justify-between text-[10px] text-gray-500 uppercase font-bold tracking-widest">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-          <span>WebSocket Active</span>
+          <span>{activeDevice ? `${activeDevice.protocol} ready` : 'No TV connected'}</span>
         </div>
         <div className="hidden sm:block text-gray-600 uppercase font-medium">Remote Control • Web PWA</div>
         <div className="flex items-center gap-4">

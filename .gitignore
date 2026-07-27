@@ -1,8 +1,26 @@
 node_modules/
-build/
 dist/
-coverage/
+.turbo/
+.env
+.env.local
+*.tsbuildinfo
 .DS_Store
 *.log
-.env*
-!.env.example
+android/app/build/
+ios/Pods/
+ios/build/
+*.jks
+*.keystore
+
+# React Native
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/ios/build/
+apps/mobile/ios/Pods/
+apps/mobile/.metro-health-check*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

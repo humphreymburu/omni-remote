@@ -4,17 +4,11 @@ import {
   Wifi,
   Bluetooth,
   RefreshCw,
-  Plus,
-  CheckCircle2,
-  XCircle,
   X,
-  Smartphone,
-  ShieldCheck,
   Radio,
-  Sliders,
   AlertTriangle,
 } from 'lucide-react';
-import { TVDevice, TVBrand, ConnectionProtocol } from '../../types';
+import { TVDevice, TVBrand } from '../../types';
 import { bluetoothService } from '../../services/bluetoothService';
 import { tvConnectionManager } from '../../services/tvConnectionManager';
 
@@ -49,13 +43,18 @@ export const DeviceDiscoveryModal: React.FC<DeviceDiscoveryModalProps> = ({
 
   const handleStartScan = async () => {
     setIsScanning(true);
-    setScanMessage('Scanning local network subnet (SSDP / mDNS)...');
+    setScanMessage('Scanning for SSDP devices visible from this server...');
     try {
       const results = await tvConnectionManager.scanLocalNetwork();
       setDiscoveredDevices(results);
-      setScanMessage(`Found ${results.length} smart devices on local network.`);
+      setScanMessage(
+        results.length > 0
+          ? `Found ${results.length} device${results.length === 1 ? '' : 's'} via SSDP.`
+          : 'No SSDP devices responded. Try Manual IP if your TV is on this Wi-Fi.'
+      );
     } catch (err: any) {
-      setScanMessage('Network scan completed.');
+      setDiscoveredDevices([]);
+      setScanMessage(err.message || 'Network discovery failed. Try Manual IP or Bluetooth pairing.');
     } finally {
       setIsScanning(false);
     }
@@ -200,7 +199,10 @@ export const DeviceDiscoveryModal: React.FC<DeviceDiscoveryModalProps> = ({
                 <Tv className="w-8 h-8 opacity-40" />
                 <p>No paired devices found.</p>
                 <button
-                  onClick={() => setActiveTab('scan')}
+                  onClick={() => {
+                    setActiveTab('scan');
+                    handleStartScan();
+                  }}
                   className="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold"
                 >
                   Scan for Nearby TVs
@@ -264,8 +266,10 @@ export const DeviceDiscoveryModal: React.FC<DeviceDiscoveryModalProps> = ({
         {/* 2. Network Scanner Tab */}
         {activeTab === 'scan' && (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400 font-medium">{scanMessage}</span>
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-xs text-slate-400 font-medium leading-relaxed">
+                {scanMessage || 'Run a scan to discover TVs on the server network.'}
+              </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleBluetoothScan}
@@ -284,6 +288,18 @@ export const DeviceDiscoveryModal: React.FC<DeviceDiscoveryModalProps> = ({
             </div>
 
             <div className="flex flex-col gap-2">
+              {!isScanning && discoveredDevices.length === 0 && (
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs text-amber-100 flex gap-3">
+                  <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-1">
+                    <span className="font-bold text-amber-200">No discovered devices yet</span>
+                    <span className="text-amber-100/80">
+                      Browser PWAs cannot scan Wi-Fi directly. This scan works only when the app server is running on the same LAN as the TV and the TV responds to SSDP.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {discoveredDevices.map((dev) => (
                 <div
                   key={dev.id}

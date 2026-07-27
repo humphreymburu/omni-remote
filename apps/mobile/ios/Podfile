@@ -1,0 +1,72 @@
+require_relative '../node_modules/react-native/scripts/react_native_pods'
+require_relative '../node_modules/@react-native-community/cli-platform-ios/native_modules'
+
+# Monorepo: resolve node_modules from the workspace root
+$monorepo_root = File.expand_path('../../..', __dir__)
+node_modules_paths = [
+  File.join(__dir__, '..', 'node_modules'),
+  File.join($monorepo_root, 'node_modules'),
+]
+
+def node_require(script)
+  node_modules_paths.each do |p|
+    resolved = File.join(p, script)
+    if File.exist?(resolved)
+      return Pod::Executable.execute_command('node', ['-p', "require('#{resolved}')"], true)[:stdout]
+    end
+  end
+  raise "Could not resolve #{script} in monorepo"
+end
+
+platform :ios, min_ios_version_supported
+prepare_react_native_project!
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+target 'OmniRemote' do
+  config = use_native_modules!
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  # Additional iOS network permissions for discovery
+  # These pods enable local network multicast (SSDP/mDNS) and Bonjour
+  pod 'CocoaAsyncSocket', '~> 7.6', :modular_headers => true
+
+  # Secure storage
+  pod 'react-native-keychain', :path => '../node_modules/react-native-keychain'
+
+  # Vector Icons
+  pod 'RNVectorIcons', :path => '../node_modules/react-native-vector-icons'
+
+  target 'OmniRemoteTests' do
+    inherit! :complete
+  end
+end
+
+post_install do |installer|
+  react_native_post_install(
+    installer,
+    config[:reactNativePath],
+    :mac_catalyst_enabled => false
+  )
+
+  # Fix monorepo module resolution for all pods
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
+      config.build_settings['HEADER_SEARCH_PATHS'] << " #{node_modules_paths.join(' ')}"
+    end
+  end
+
+  # Increase build stability
+  installer.pods_project.build_configurations.each do |config|
+    config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+  end
+end

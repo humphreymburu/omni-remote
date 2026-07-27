@@ -1,26 +1,27 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
-    "module": "ESNext",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "allowJs": true,
-    "jsx": "react-jsx",
-    "paths": {
-      "@/*": [
-        "./*"
-      ]
-    },
-    "allowImportingTsExtensions": true,
-    "noEmit": true
-  }
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "apps/mobile/src",
+    "apps/api/src",
+    "packages/core/src",
+    "packages/protocol-types/src",
+    "packages/discovery/src",
+    "packages/adapter-roku/src",
+    "packages/adapter-lg-webos/src",
+    "packages/adapter-samsung-tizen/src",
+    "packages/adapter-cast/src",
+    "packages/adapter-upnp/src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "packages/core/adapter-contract.ts"
+  ]
 }

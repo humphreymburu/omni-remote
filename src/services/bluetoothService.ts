@@ -15,7 +15,7 @@ export class BluetoothService {
 
   public async requestTVDevice(): Promise<BluetoothDeviceInfo | null> {
     if (!this.isSupported()) {
-      throw new Error('Web Bluetooth is not supported in this browser. Fallback to IP or simulated protocol.');
+      throw new Error('Web Bluetooth is not supported in this browser. Use Manual IP instead.');
     }
 
     try {

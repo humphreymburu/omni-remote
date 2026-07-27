@@ -1,6 +1,6 @@
 export type TVBrand = 'roku' | 'lg' | 'samsung' | 'sony' | 'android' | 'apple' | 'generic';
 
-export type ConnectionProtocol = 'websocket' | 'http_rest' | 'web_bluetooth' | 'ssdp_bridge' | 'simulated';
+export type ConnectionProtocol = 'websocket' | 'http_rest' | 'web_bluetooth' | 'ssdp_bridge';
 
 export interface TVDeviceState {
   power: boolean;
@@ -113,7 +113,7 @@ export interface CommandLog {
   timestamp: string;
   command: RemoteCommand;
   deviceName: string;
-  status: 'sent' | 'simulated' | 'failed';
+  status: 'sent' | 'failed';
   details?: string;
 }
 
